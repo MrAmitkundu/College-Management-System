@@ -81,13 +81,17 @@ WSGI_APPLICATION = 'college_backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+# "PASSWORD": "Amit@2005.k",
+# "PASSWORD": "Sukanya@2005",
+
+
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": "student_management",
         "USER": "root",
-        "PASSWORD": "Amit@2005.k",
+        "PASSWORD": "Sukanya@2005",
         "HOST": "127.0.0.1",
         "PORT": "3306"
     }
