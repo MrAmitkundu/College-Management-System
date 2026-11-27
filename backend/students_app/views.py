@@ -5,8 +5,8 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import Student, Faculty
-from .serializers import StudentSerializer, FacultySerializer
+from .models import Student
+from .serializers import StudentSerializer
 
 
 @api_view(["GET"])
@@ -19,4 +19,5 @@ def student_list(request):
     )
 
     return Response(serializer.data)
+
 

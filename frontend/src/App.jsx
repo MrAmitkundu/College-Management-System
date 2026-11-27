@@ -5,7 +5,6 @@ import Footer from './components/Footer';
 import DashboardView from './pages/DashboardView';
 import StudentsView from './pages/StudentsView';
 import FacultyView from './pages/FacultyView';
-import LibraryView from './pages/LibraryView';
 import TransactionsView from './pages/TransactionsView';
 import ExaminationsView from './pages/ExaminationsView';
 import NoticesView from './pages/NoticesView';
