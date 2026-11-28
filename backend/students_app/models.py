@@ -11,10 +11,21 @@ class Student(models.Model):
     blood_group = models.CharField(max_length=5, blank=True, null=True)
     department = models.CharField(max_length=100, blank=True, null=True)
     semester = models.CharField(max_length=10, blank=True, null=True)
+    status = models.CharField(max_length=20, blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'student'
+
+
+class Transaction(models.Model):
+    transaction_id = models.CharField(primary_key=True, max_length=50)
+    student_name = models.CharField(max_length=100)
+    transaction_date = models.DateField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'transaction'
 
 
 class Faculty(models.Model):
@@ -51,7 +62,8 @@ class Notice(models.Model):
     notice_topic = models.CharField(max_length=200, blank=True, null=True)
     notice_description = models.TextField(blank=True, null=True)
     priority = models.CharField(max_length=6, blank=True, null=True)
+    date = models.DateField(blank=True, null=True)
 
     class Meta:
         managed = False
-        db_table = 'notice'                
+        db_table = 'notice'

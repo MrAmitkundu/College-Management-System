@@ -1,21 +1,24 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Filter, Plus } from 'lucide-react';
 
 import StudentFilterBar from '../components/students/StudentFilterBar';
 import StudentTable from '../components/students/StudentTable';
 import AddStudentModal from '../components/students/AddStudentModal';
 
+import useFetchData from "../hooks/useFetchData";
+
+
 // Django API endpoint
 const API_URL = 'http://127.0.0.1:8000/api/student/';
 
 export default function StudentsView() {
-  // Student records received from Django
-  const [students, setStudents] = useState([]);
 
-  // API loading and error states
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const {
+    data: students,
+    loading,
+    error,
+    refetch: fetchStudents
+  } = useFetchData(API_URL);
 
   // Existing UI states
   const [showFilters, setShowFilters] = useState(false);
@@ -24,46 +27,10 @@ export default function StudentsView() {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fetch students from Django
-  const fetchStudents = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      const response = await fetch(API_URL);
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Supports normal and paginated DRF responses
-      const studentData = Array.isArray(data)
-        ? data
-        : data.results || [];
-
-      setStudents(studentData);
-    } catch (err) {
-      console.error('Student API error:', err);
-
-      setError(
-        'Unable to load students. Check whether Django is running.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Automatically fetch students when page opens
-  useEffect(() => {
-    fetchStudents();
-  }, []);
-
   // Department options from actual API records
   const departments = [
     'All',
-    ...new Set(students.map((student) => student.dept).filter(Boolean)),
+    ...new Set(students.map((student) => student.department).filter(Boolean)),
   ];
 
   // Search and department filtering
@@ -96,6 +63,60 @@ export default function StudentsView() {
     selectedDept !== 'All' ||
     selectedStatus !== 'All';
 
+  // Save edited student details
+  const handleSaveStudent = async (studentId, formData) => {
+    const res = await fetch(`${API_URL}${encodeURIComponent(studentId)}/edit/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.detail || JSON.stringify(data) || 'Failed to update student');
+    }
+    await fetchStudents();
+  };
+
+  // Promote student to next semester (status -> Pending Fee)
+  const handlePromoteStudent = async (student) => {
+    const res = await fetch(`${API_URL}${encodeURIComponent(student.student_id)}/promote/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.detail || 'Failed to promote student');
+    }
+    await fetchStudents();
+  };
+
+  // Verify transaction ID and approve pending fee
+  const handleApproveFee = async (student, transactionId) => {
+    const res = await fetch(`${API_URL}${encodeURIComponent(student.student_id)}/approve-fee/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transaction_id: transactionId }),
+    });
+    const data = await res.json();
+    if (data?.ok) {
+      await fetchStudents();
+    }
+    return data;
+  };
+
+  // Revert student back to previous semester and set status Active
+  const handleRevertPromotion = async (student) => {
+    const res = await fetch(`${API_URL}${encodeURIComponent(student.student_id)}/revert-semester/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.detail || 'Failed to revert semester');
+    }
+    await fetchStudents();
+  };
+
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
 
@@ -116,11 +137,10 @@ export default function StudentsView() {
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer ${
-              showFilters || hasActiveFilters
-                ? 'bg-blue-50 text-[#1464F6] border border-blue-200'
-                : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-            }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer ${showFilters || hasActiveFilters
+              ? 'bg-blue-50 text-[#1464F6] border border-blue-200'
+              : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+              }`}
           >
             <Filter className="w-4 h-4" />
             Filter
@@ -169,6 +189,10 @@ export default function StudentsView() {
         loading={loading}
         error={error}
         onResetFilters={resetFilters}
+        onSaveStudent={handleSaveStudent}
+        onPromoteStudent={handlePromoteStudent}
+        onApproveFee={handleApproveFee}
+        onRevertPromotion={handleRevertPromotion}
       />
 
       {/* Add student modal */}

@@ -1,11 +1,17 @@
-
 from rest_framework import serializers
-from .models import Student, Faculty, Examination, Notice
+from .models import Student, Transaction, Faculty, Examination, Notice
 
 
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
+        fields = '__all__'
+        read_only_fields = ['student_id', 'semester', 'status']
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
         fields = '__all__'
 
 

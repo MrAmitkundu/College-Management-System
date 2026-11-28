@@ -1,64 +1,143 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { Filter, Plus } from 'lucide-react';
-import { facultyList as initialFaculty } from '../data/mockData';
+
 import FacultyFilterBar from '../components/faculty/FacultyFilterBar';
 import FacultyGrid from '../components/faculty/FacultyGrid';
 import AddFacultyModal from '../components/faculty/AddFacultyModal';
 
+import useFetchData from '../hooks/useFetchData';
+
+// Django API endpoint
+const API_URL = 'http://127.0.0.1:8000/api/faculty/';
+
 export default function FacultyView() {
-  const [faculty, setFaculty] = useState(initialFaculty);
+  // Fetch faculty from Django API
+  const {
+    data: faculty = [],
+    loading,
+    error,
+    refetch: fetchFaculty,
+  } = useFetchData(API_URL);
+
+  // UI states
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDept, setSelectedDept] = useState('All');
   const [selectedRole, setSelectedRole] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Extract unique departments and roles dynamically
-  const departments = ['All', ...new Set(faculty.map((f) => f.dept))];
-  const roles = ['All', ...new Set(faculty.map((f) => f.role))];
+  // Locally added faculty (until connected to POST API)
+  const [addedFaculty, setAddedFaculty] = useState([]);
 
-  const filteredFaculty = faculty.filter((fac) => {
-    const matchesSearch =
-      fac.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      fac.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDept = selectedDept === 'All' || fac.dept === selectedDept;
-    const matchesRole = selectedRole === 'All' || fac.role === selectedRole;
+  // Combine API faculty and locally added faculty
+  const allFaculty = useMemo(() => {
+    return [...addedFaculty, ...faculty];
+  }, [addedFaculty, faculty]);
 
-    return matchesSearch && matchesDept && matchesRole;
-  });
 
+  // Extract unique departments
+  const departments = useMemo(() => {
+    return [
+      'All',
+      ...new Set(
+        allFaculty
+          .map((f) => f.department)
+          .filter(Boolean)
+      ),
+    ];
+  }, [allFaculty]);
+
+  // Extract unique roles
+  const roles = useMemo(() => {
+    return [
+      'All',
+      ...new Set(
+        allFaculty
+          .map((f) => f.designation)
+          .filter(Boolean)
+      ),
+    ];
+  }, [allFaculty]);
+
+  // Apply filters
+  const filteredFaculty = useMemo(() => {
+    return allFaculty.filter((fac) => {
+      const name = String(fac.teacher_name || '').toLowerCase();
+      const id = String(fac.faculty_id || '').toLowerCase();
+      const query = searchQuery.toLowerCase();
+
+      const matchesSearch =
+        name.includes(query) || id.includes(query);
+
+      const matchesDept =
+        selectedDept === 'All' || fac.department === selectedDept;
+
+      const matchesRole =
+        selectedRole === 'All' || fac.designation === selectedRole;
+
+      return matchesSearch && matchesDept && matchesRole;
+    });
+  }, [
+    allFaculty,
+    searchQuery,
+    selectedDept,
+    selectedRole,
+  ]);
+
+
+
+  // Add faculty locally
   const handleAddFaculty = (newFacultyData) => {
-    const nextNumber = 201 + faculty.length;
+    const nextNumber = 201 + allFaculty.length;
+
     const createdFaculty = {
       id: `FAC-${nextNumber}`,
       ...newFacultyData,
     };
-    setFaculty([createdFaculty, ...faculty]);
+
+    setAddedFaculty((prev) => [createdFaculty, ...prev]);
+
+    setIsModalOpen(false);
   };
 
+  // Reset filters
   const resetFilters = () => {
     setSearchQuery('');
     setSelectedDept('All');
     setSelectedRole('All');
   };
 
-  const hasActiveFilters = searchQuery !== '' || selectedDept !== 'All' || selectedRole !== 'All';
+  // Check active filters
+  const hasActiveFilters =
+    searchQuery !== '' ||
+    selectedDept !== 'All' ||
+    selectedRole !== 'All';
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-      {/* Header & Action Buttons */}
+
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Faculty Members</h2>
+          <h2 className="text-xl font-bold text-slate-800">
+            Faculty Members
+          </h2>
+
           <p className="text-xs text-slate-500 mt-0.5">
-            Showing {filteredFaculty.length} of {faculty.length} teaching staff & department heads
+            {loading
+              ? 'Loading faculty records...'
+              : `Showing ${filteredFaculty.length} of ${allFaculty.length} teaching staff & department heads`}
           </p>
         </div>
 
+        {/* Action Buttons */}
         <div className="flex items-center gap-3">
+
+          {/* Filter Button */}
           <button
             type="button"
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={() => setShowFilters((prev) => !prev)}
             className={`px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition cursor-pointer ${
               showFilters || hasActiveFilters
                 ? 'bg-emerald-50 text-[#109E62] border border-emerald-200'
@@ -66,21 +145,27 @@ export default function FacultyView() {
             }`}
           >
             <Filter className="w-4 h-4" />
+
             Filter
-            {hasActiveFilters && <span className="w-2 h-2 rounded-full bg-[#109E62]" />}
+
+            {hasActiveFilters && (
+              <span className="w-2 h-2 rounded-full bg-[#109E62]" />
+            )}
           </button>
 
+          {/* Add Faculty Button */}
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 text-xs font-semibold text-white bg-[#109E62] hover:bg-emerald-700 rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> Add Faculty
+            <Plus className="w-4 h-4" />
+            Add Faculty
           </button>
         </div>
       </div>
 
-      {/* Collapsible Filter Bar */}
+      {/* Filter Bar */}
       {showFilters && (
         <FacultyFilterBar
           searchQuery={searchQuery}
@@ -96,8 +181,14 @@ export default function FacultyView() {
         />
       )}
 
-      {/* Faculty Cards Grid */}
-      <FacultyGrid faculty={filteredFaculty} onResetFilters={resetFilters} />
+      {/* Faculty Grid */}
+      <FacultyGrid
+        faculty={filteredFaculty}
+        loading={loading}
+        error={error}
+        onResetFilters={resetFilters}
+        onRetry={fetchFaculty}
+      />
 
       {/* Add Faculty Modal */}
       <AddFacultyModal
@@ -105,6 +196,7 @@ export default function FacultyView() {
         onClose={() => setIsModalOpen(false)}
         onAddFaculty={handleAddFaculty}
       />
+
     </div>
   );
 }
