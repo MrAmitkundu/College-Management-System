@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 function useFetchData(apiUrl) {
 
@@ -64,9 +64,9 @@ function useFetchData(apiUrl) {
     }, [apiUrl, refreshKey]);
 
     // Function to fetch the API again
-    const refetch = () => {
+    const refetch = useCallback(() => {
         setRefreshKey(previous => previous + 1);
-    };
+    }, []);
 
     return {
         data,

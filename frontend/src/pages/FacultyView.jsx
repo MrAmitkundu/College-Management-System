@@ -27,13 +27,8 @@ export default function FacultyView() {
   const [selectedRole, setSelectedRole] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Locally added faculty (until connected to POST API)
-  const [addedFaculty, setAddedFaculty] = useState([]);
-
-  // Combine API faculty and locally added faculty
-  const allFaculty = useMemo(() => {
-    return [...addedFaculty, ...faculty];
-  }, [addedFaculty, faculty]);
+  // Faculty records are stored in the database; do not maintain a local-only copy.
+  const allFaculty = faculty;
 
 
   // Extract unique departments
@@ -87,18 +82,9 @@ export default function FacultyView() {
 
 
 
-  // Add faculty locally
-  const handleAddFaculty = (newFacultyData) => {
-    const nextNumber = 201 + allFaculty.length;
-
-    const createdFaculty = {
-      id: `FAC-${nextNumber}`,
-      ...newFacultyData,
-    };
-
-    setAddedFaculty((prev) => [createdFaculty, ...prev]);
-
-    setIsModalOpen(false);
+  // The modal posts to Django. Refresh the database list after a successful save.
+  const handleAddFaculty = async () => {
+    await fetchFaculty();
   };
 
   // Reset filters

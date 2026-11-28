@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   Clock,
@@ -10,6 +9,31 @@ import {
   RefreshCw,
   ClipboardList,
 } from 'lucide-react';
+
+// Helper to parse YYYY-MM-DD + start time (e.g. "10:00 AM - 1:00 PM") into a timestamp
+function getExamStartTimestamp(exam) {
+  if (!exam?.date) return Number.MAX_SAFE_INTEGER;
+
+  const [year, month, day] = String(exam.date).split('-').map(Number);
+  if (!year || !month || !day) return Number.MAX_SAFE_INTEGER;
+
+  let hours = 0;
+  let minutes = 0;
+
+  if (exam.time_slot) {
+    const startPart = String(exam.time_slot).split(/\s*(?:-|–|—)\s*/)[0]?.trim();
+    const match = startPart?.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2] || '0', 10);
+      const meridiem = match[3]?.toUpperCase();
+      if (meridiem === 'PM' && hours !== 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+    }
+  }
+
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+}
 
 export default function ExamCardGrid({
   exams = [],
@@ -22,13 +46,49 @@ export default function ExamCardGrid({
 
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Sort: On Going -> Upcoming Scheduled (nearest first, later at end) -> Exam Finished (at last)
+  const sortedExams = useMemo(() => {
+    return [...exams].sort((a, b) => {
+      const statusA = (a.status || '').trim().toLowerCase();
+      const statusB = (b.status || '').trim().toLowerCase();
+
+      const isFinishedA = statusA === 'exam finished';
+      const isFinishedB = statusB === 'exam finished';
+
+      // Push finished exams to the very end
+      if (isFinishedA !== isFinishedB) {
+        return isFinishedA ? 1 : -1;
+      }
+
+      // Within active/upcoming exams, prioritize "On Going" before "Scheduled"
+      const isOngoingA = statusA === 'on going';
+      const isOngoingB = statusB === 'on going';
+      if (isOngoingA !== isOngoingB) {
+        return isOngoingA ? -1 : 1;
+      }
+
+      const timeA = getExamStartTimestamp(a);
+      const timeB = getExamStartTimestamp(b);
+
+      if (!isFinishedA) {
+        // Upcoming / On Going: nearest date & time first, later dates toward the end
+        if (timeA !== timeB) return timeA - timeB;
+      } else {
+        // Finished: most recently finished first, oldest finished at the very last
+        if (timeA !== timeB) return timeB - timeA;
+      }
+
+      return String(a.exam_id || '').localeCompare(String(b.exam_id || ''));
+    });
+  }, [exams]);
+
   // Calculate total pages
-  const totalPages = Math.ceil(exams.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(sortedExams.length / ITEMS_PER_PAGE);
 
   // Reset pagination when filtered results change
   useEffect(() => {
     setCurrentPage(1);
-  }, [exams.length]);
+  }, [exams]);
 
   // Keep current page within valid range
   useEffect(() => {
@@ -42,10 +102,10 @@ export default function ExamCardGrid({
 
   const endIndex = Math.min(
     startIndex + ITEMS_PER_PAGE,
-    exams.length
+    sortedExams.length
   );
 
-  const currentExams = exams.slice(startIndex, endIndex);
+  const currentExams = sortedExams.slice(startIndex, endIndex);
 
   // Generate pagination numbers
   const getPageNumbers = () => {
@@ -84,7 +144,6 @@ export default function ExamCardGrid({
   if (loading) {
     return (
       <div className="space-y-5">
-
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-50">
             <RefreshCw className="w-5 h-5 text-[#1464F6] animate-spin" />
@@ -123,7 +182,6 @@ export default function ExamCardGrid({
             </div>
           ))}
         </div>
-
       </div>
     );
   }
@@ -132,7 +190,6 @@ export default function ExamCardGrid({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-14 px-5 rounded-xl border border-red-200 bg-red-50/50">
-
         <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-red-100 mb-4">
           <AlertCircle className="w-7 h-7 text-red-500" />
         </div>
@@ -157,16 +214,14 @@ export default function ExamCardGrid({
             Try Again
           </button>
         )}
-
       </div>
     );
   }
 
   // Empty State
-  if (exams.length === 0) {
+  if (sortedExams.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-14 px-5 rounded-xl border border-dashed border-slate-200 bg-white">
-
         <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 mb-4">
           <ClipboardList className="w-7 h-7 text-slate-400" />
         </div>
@@ -188,7 +243,6 @@ export default function ExamCardGrid({
             View all departments
           </button>
         )}
-
       </div>
     );
   }
@@ -196,7 +250,6 @@ export default function ExamCardGrid({
   // Success State
   return (
     <div className="space-y-6">
-
       {/* Examination Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {currentExams.map((exam, idx) => (
@@ -215,7 +268,9 @@ export default function ExamCardGrid({
                   className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                     exam.status === 'Scheduled'
                       ? 'bg-amber-50 text-amber-700'
-                      : 'bg-emerald-50 text-emerald-700'
+                      : exam.status === 'On Going'
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'bg-slate-100 text-slate-700'
                   }`}
                 >
                   {exam.status}
@@ -230,7 +285,6 @@ export default function ExamCardGrid({
 
             {/* Exam Details */}
             <div className="mt-4 pt-3 border-t border-slate-200/70 flex flex-wrap items-center gap-4 text-xs text-slate-600">
-
               <span className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 {exam.date}
@@ -245,7 +299,6 @@ export default function ExamCardGrid({
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 {exam.room}
               </span>
-
             </div>
           </div>
         ))}
@@ -254,7 +307,6 @@ export default function ExamCardGrid({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 pt-5">
-
           {/* Results Information */}
           <p className="text-sm text-slate-500">
             Showing{' '}
@@ -263,14 +315,13 @@ export default function ExamCardGrid({
             </span>{' '}
             of{' '}
             <span className="font-semibold text-slate-700">
-              {exams.length}
+              {sortedExams.length}
             </span>{' '}
             examinations
           </p>
 
           {/* Pagination Controls */}
           <div className="flex items-center gap-1.5">
-
             {/* Previous Button */}
             <button
               type="button"
@@ -333,7 +384,6 @@ export default function ExamCardGrid({
 
               <ChevronRight className="w-4 h-4" />
             </button>
-
           </div>
         </div>
       )}
@@ -343,12 +393,11 @@ export default function ExamCardGrid({
         <div className="text-sm text-slate-500 border-t border-slate-200 pt-4">
           Showing{' '}
           <span className="font-semibold text-slate-700">
-            {exams.length}
+            {sortedExams.length}
           </span>{' '}
           examinations
         </div>
       )}
-
     </div>
   );
 }

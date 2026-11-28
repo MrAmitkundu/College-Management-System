@@ -11,6 +11,8 @@ export default function ApproveFeeModal({
   const [canRevert, setCanRevert] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const isPromotedStudent = Boolean(student?.can_revert);
+
   const handleApprove = async (e) => {
     e.preventDefault();
     if (!transactionId.trim()) return;
@@ -28,21 +30,25 @@ export default function ApproveFeeModal({
           result?.reason ||
             'Unable to approve payment. Transaction verification failed.'
         );
-        setCanRevert(true);
+        setCanRevert(isPromotedStudent);
       }
     } catch (err) {
       setErrorMsg(err?.message || 'Verification failed.');
-      setCanRevert(true);
+      setCanRevert(isPromotedStudent);
     } finally {
       setLoading(false);
     }
   };
 
   const handleRevert = async () => {
+    if (!isPromotedStudent) return;
     setLoading(true);
+    setErrorMsg('');
     try {
       await onRevertSemester?.(student);
       onClose();
+    } catch (err) {
+      setErrorMsg(err?.message || 'Unable to revert semester.');
     } finally {
       setLoading(false);
     }
@@ -77,14 +83,20 @@ export default function ApproveFeeModal({
           {errorMsg && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
               <p className="font-semibold">{errorMsg}</p>
-              <button
-                type="button"
-                onClick={handleRevert}
-                disabled={loading || !canRevert}
-                className="mt-2.5 rounded-md bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
-              >
-                Revert to Previous Semester &amp; Set Active
-              </button>
+              {canRevert ? (
+                <button
+                  type="button"
+                  onClick={handleRevert}
+                  disabled={loading}
+                  className="mt-2.5 rounded-md bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+                >
+                  Revert to Previous Semester &amp; Set Active
+                </button>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-red-600">
+                  This is a newly admitted student record, so semester revert is not available. Please enter a valid transaction ID to activate.
+                </p>
+              )}
             </div>
           )}
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Bell, Plus } from 'lucide-react';
 
@@ -27,48 +26,46 @@ export default function NoticesView() {
 
     return items.map((notice) => ({
       ...notice,
-      id: notice.id,
-      text: notice.text || notice.title || notice.message || '',
-      date: notice.date || notice.published_on || notice.created_at
-        ? new Date(
-            notice.date || notice.published_on || notice.created_at
-          ).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          })
-        : 'Date unavailable',
-      barColor: notice.barColor || 'bg-blue-500',
+      id: notice.notice_id ?? notice.id,
+      notice_topic:
+        notice.notice_topic || notice.topic || notice.title || 'Untitled Notice',
+      notice_description:
+        notice.notice_description ||
+        notice.description ||
+        notice.text ||
+        notice.message ||
+        '',
+      priority: notice.priority || 'Low',
+      date: notice.date || notice.published_on || notice.created_at || '',
     }));
   }, [apiNotices]);
 
-  // Publish notice to Django.
+  // Publish notice to Django (single POST request, then refetch).
   const handlePublishNotice = async (newNoticeData) => {
     setActionError('');
 
-    try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newNoticeData),
-      });
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(newNoticeData),
+    });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail ||
-          errorData.message ||
-          'Unable to publish notice.'
-        );
-      }
+    const responseData = await response.json().catch(() => ({}));
 
-      setIsModalOpen(false);
-      await fetchNotices();
-    } catch (err) {
-      setActionError(err.message);
+    if (!response.ok) {
+      const firstError =
+        responseData.detail ||
+        responseData.message ||
+        Object.values(responseData).flat()[0] ||
+        'Unable to publish notice.';
+      setActionError(firstError);
+      throw new Error(firstError);
     }
+
+    setIsModalOpen(false);
+    await fetchNotices();
   };
 
   // Delete notice using its database ID.

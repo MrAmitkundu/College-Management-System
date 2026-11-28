@@ -10,6 +10,7 @@ import useFetchData from "../hooks/useFetchData";
 
 // Django API endpoint
 const API_URL = 'http://127.0.0.1:8000/api/student/';
+const DEPARTMENTS_API_URL = 'http://127.0.0.1:8000/api/departments/';
 
 export default function StudentsView() {
 
@@ -26,12 +27,20 @@ export default function StudentsView() {
   const [selectedDept, setSelectedDept] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
 
-  // Department options from actual API records
-  const departments = [
-    'All',
-    ...new Set(students.map((student) => student.department).filter(Boolean)),
-  ];
+  // Department choices are loaded from distinct department values in the database.
+  React.useEffect(() => {
+    fetch(DEPARTMENTS_API_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to load departments');
+        return response.json();
+      })
+      .then((data) => setDepartmentOptions(Array.isArray(data) ? data : []))
+      .catch((err) => console.error('Department API error:', err));
+  }, []);
+
+  const departments = ['All', ...departmentOptions];
 
   // Search and department filtering
   const filteredStudents = students.filter((stu) => {
@@ -46,9 +55,11 @@ export default function StudentsView() {
         .includes(search);
 
     const matchesDept =
-      selectedDept === 'All' || stu.dept === selectedDept;
+      selectedDept === 'All' || stu.department === selectedDept;
+    const matchesStatus =
+      selectedStatus === 'All' || stu.status === selectedStatus;
 
-    return matchesSearch && matchesDept;
+    return matchesSearch && matchesDept && matchesStatus;
   });
 
   // Reset filters
@@ -62,6 +73,24 @@ export default function StudentsView() {
     searchQuery !== '' ||
     selectedDept !== 'All' ||
     selectedStatus !== 'All';
+
+  // Create a student in MySQL through Django. The backend forces Pending Fee status.
+  const handleAddStudent = async (studentData) => {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(studentData),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.detail || Object.entries(data || {})
+        .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+        .join(' | ');
+      throw new Error(message || 'Failed to add student.');
+    }
+    await fetchStudents();
+    return data;
+  };
 
   // Save edited student details
   const handleSaveStudent = async (studentId, formData) => {
@@ -199,10 +228,8 @@ export default function StudentsView() {
       <AddStudentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onAddStudent={() => {
-          // Refresh the table after a student is added
-          fetchStudents();
-        }}
+        departments={departmentOptions}
+        onAddStudent={handleAddStudent}
       />
     </div>
   );

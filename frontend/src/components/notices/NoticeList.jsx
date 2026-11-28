@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 
 import {
@@ -29,7 +28,7 @@ export default function NoticeList({
     setVisibleCount(NOTICES_PER_PAGE);
   }, [notices.length]);
 
-  // Sort notices by date: newest first.
+  // Sort notices by date (newest first), breaking same-day ties by highest notice_id.
   const sortedNotices = useMemo(() => {
     return [...notices].sort((a, b) => {
       const dateA = new Date(
@@ -40,7 +39,13 @@ export default function NoticeList({
         b.date || b.published_on || b.created_at || 0
       ).getTime();
 
-      return dateB - dateA;
+      if (dateB !== dateA) {
+        return dateB - dateA;
+      }
+
+      const idA = Number(a.notice_id ?? a.id ?? 0);
+      const idB = Number(b.notice_id ?? b.id ?? 0);
+      return idB - idA;
     });
   }, [notices]);
 
